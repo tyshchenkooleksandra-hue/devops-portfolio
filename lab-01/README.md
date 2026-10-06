@@ -98,7 +98,7 @@ yzhang.markdown-all-in-one@3.6.3
 Навмисно зламаний workflow (`runs_on` замість `runs-on`, рядок замість числа в `timeout-minutes`).
 Розширення YAML перевіряє його за схемою GitHub Actions і показує помилки ще до коміту:
 
-![VS Code підсвічує помилки в GitHub Actions workflow](assets/yaml-schema-error.jpg)
+![VS Code підсвічує помилки в GitHub Actions workflow](assets/01-yaml-schema-error.jpg)
 
 ---
 
@@ -171,18 +171,56 @@ PS> code --version
 
 ## Завдання 3. GitHub і доступ
 
-- Профіль: <https://github.com/tyshchenkooleksandra-hue> — ім'я, фото, опис заповнено.
-- Двофакторна автентифікація увімкнена.
-- SSH-ключ `ed25519` із парольною фразою, публічна частина додана в акаунт:
+### Профіль
 
-```bash
-ssh-keygen -t ed25519 -C "tyshchenko.oleksandra@chnu.edu.ua"
+<https://github.com/tyshchenkooleksandra-hue> — ім'я, фото, короткий опис заповнено.
+
+![Профіль GitHub](assets/03-github-profile.jpg)
+
+### Двофакторна автентифікація
+
+Увімкнена, метод — застосунок-автентифікатор (TOTP). SMS не використовується: його можна
+перехопити (SIM-swap), що GitHub і позначає як «Less secure».
+
+![2FA увімкнена](assets/03-2fa-enabled.jpg)
+
+### SSH-ключ `ed25519` із парольною фразою
+
+Ключ згенеровано під час `gh auth login` (всередині викликається `ssh-keygen -t ed25519`),
+парольну фразу задано, публічну частину додано в акаунт:
+
+```text
+$ ssh-keygen -lf ~/.ssh/id_ed25519.pub
+256 SHA256:AWls7cY57WkZL8yr5atdBNWLIhoHAU98905BeEl0E2k no comment (ED25519)
 ```
+
+Відбиток збігається з ключем `laptop-2026` в акаунті:
+
+![SSH-ключ в акаунті GitHub](assets/03-ssh-key.jpg)
+
+**Перевірка з'єднання** (парольну фразу запитує при кожному використанні ключа):
 
 ```text
 $ ssh -T git@github.com
-SSH_T_OUTPUT_PLACEHOLDER
+Enter passphrase for key 'C:\Users\Alexandra/.ssh/id_ed25519':
+Hi tyshchenkooleksandra-hue! You've successfully authenticated, but GitHub does not provide shell access.
 ```
+
+**Проблема, що виникла:** у моїй мережі вихідний порт 22 заблоковано
+(`ssh: connect to host github.com port 22: Connection timed out`). GitHub підтримує SSH через
+порт 443 на хості `ssh.github.com`, тому в `~/.ssh/config` додано:
+
+```text
+Host github.com
+  HostName ssh.github.com
+  Port 443
+  User git
+```
+
+Перед першим з'єднанням відбитки ключів хоста звірено з
+[опублікованими GitHub](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints)
+(ED25519 `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`) — без цього можна прийняти
+ключ підставного сервера (MITM).
 
 ### Чому приватний ключ ніколи не потрапляє в репозиторій
 
@@ -235,6 +273,10 @@ SSH_T_OUTPUT_PLACEHOLDER
   відкривати похідні роботи, як у GPL.
 - Структура тек: `lab-01/` … `lab-10/`, `final/`, у кожній — `README.md`-заглушка (Git не зберігає порожні теки).
 
+![Структура репозиторію](assets/04-repo-structure.jpg)
+
+![README портфоліо на GitHub](assets/05-portfolio-readme.jpg)
+
 ---
 
 ## Завдання 5. Правила репозиторію
@@ -249,6 +291,17 @@ $ gh api repos/tyshchenkooleksandra-hue/devops-portfolio/rules/branches/main --j
 deletion, non_fast_forward, required_linear_history, pull_request
 ```
 
+![Ruleset protect-main](assets/06-ruleset-main.jpg)
+
+Що правила справді працюють, видно на практиці: спроба force-push у `main` відхиляється:
+
+```text
+$ git push --force-with-lease
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: - Cannot force-push to this branch
+remote: - Changes must be made through a pull request.
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+```
 
 | Правило | Значення |
 |---|---|
@@ -283,13 +336,30 @@ deletion, non_fast_forward, required_linear_history, pull_request
 
 Project «DevOps course»: <https://github.com/users/tyshchenkooleksandra-hue/projects/3>
 
-- Колонки (поле Status): **Backlog / In Progress / Review / Done**.
-- Задачі: по одній на кожен модуль курсу (3) і на фінальний проєкт.
-- Вбудовані автоматизації (Project → ⋯ → Workflows):
-  - *Item added to project* → Backlog
-  - *Pull request linked / opened* → Review
-  - *Pull request merged* → Done
-  - *Item closed* → Done
+- Колонки (поле Status, вид Board): **Backlog / In Progress / Review / Done**.
+- Задачі: по одній на кожен модуль курсу (3) і на фінальний проєкт; PR цієї роботи — у Review.
+
+![Дошка проєкту](assets/07-project-board.jpg)
+
+Вбудовані автоматизації (Project → Workflows):
+
+| Подія з завдання | Workflow GitHub | Статус |
+|---|---|---|
+| нова задача → Backlog | *Item added to project* | Backlog |
+| відкритий PR → Review | *Pull request linked to issue* | Review |
+| злитий PR → Done | *Pull request merged* | Done |
+| закрита задача → Done | *Item closed* | Done |
+
+Окремого вбудованого workflow «PR opened» у GitHub немає: найближчий — *Pull request linked to
+issue*, він спрацьовує, коли PR посилається на задачу (`Closes #N` в описі — саме тому це поле є в
+шаблоні PR).
+
+![Увімкнені workflows дошки](assets/07-project-workflows.jpg)
+
+**Підводний камінь.** Стандартні workflows посилаються на варіанти поля Status за ID. Коли
+колонки `Todo / In Progress / Done` замінили на `Backlog / In Progress / Review / Done`, старі ID
+зникли, і workflows `Item added`, `Item closed`, `Pull request merged` показали помилку (червоний
+знак «!»), поки їм заново не вибрали цільову колонку.
 
 ### Шаблон pull request
 
@@ -299,7 +369,10 @@ Project «DevOps course»: <https://github.com/users/tyshchenkooleksandra-hue/pr
 
 ### Здача через PR
 
-Робота виконана в гілці `lab-01` і злита в `main` через pull request: <https://github.com/tyshchenkooleksandra-hue/devops-portfolio/pull/6>
+Робота виконана в гілці `lab-01` і зливається в `main` через pull request (squash, лінійна історія):
+<https://github.com/tyshchenkooleksandra-hue/devops-portfolio/pull/6>. Опис PR заповнено за шаблоном.
+
+![Pull request](assets/08-pull-request.jpg)
 
 ---
 
@@ -404,7 +477,24 @@ Changes must be made through a pull request.
  (HTTP 409)
 ```
 
-Після демонстрації тестовий репозиторій видаляється (`gh repo delete … --yes`, потрібен scope `delete_repo`).
+Результат у веб-інтерфейсі — тестовий репозиторій із файлами, покладеними скриптом, і тим самим
+ruleset-ом, що й в основному репозиторії:
+
+![Тестовий репозиторій після скрипта](assets/10-bonus-test-repo.jpg)
+
+![Ruleset тестового репозиторію](assets/11-bonus-test-ruleset.jpg)
+
+Після демонстрації тестовий репозиторій і його дошка видаляються:
+
+```bash
+gh repo delete tyshchenkooleksandra-hue/repo-config-test --yes
+gh project delete 4 --owner tyshchenkooleksandra-hue
+```
+
+**Відоме обмеження.** Скрипт замінює варіанти поля Status, тому стандартні workflows нової
+дошки втрачають цільові колонки (див. «Підводний камінь» у Завданні 5) — їх доводиться
+налаштувати вручну або використати `PROJECT_TEMPLATE`, де дошка-шаблон уже має правильні
+колонки й увімкнені workflows.
 
 ### Чому налаштування кліками — проблема для команди
 
