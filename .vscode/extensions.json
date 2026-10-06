@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "eamodio.gitlens",
+    "ms-azuretools.vscode-containers",
+    "redhat.vscode-yaml",
+    "github.vscode-github-actions",
+    "editorconfig.editorconfig",
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint"
+  ]
+}
