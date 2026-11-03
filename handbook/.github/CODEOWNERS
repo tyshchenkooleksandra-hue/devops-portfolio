@@ -1,0 +1,14 @@
+# Власники файлів. GitHub автоматично запитує рецензію власника, коли PR змінює його файл.
+#
+# Перший у рядку — відповідальна за розділ. Другий акаунт указано тому, що автор PR не може
+# схвалити власний PR: якщо власник файла єдиний і він же автор, вимога «рецензія власника коду»
+# стає нездійсненною. У команді з 3+ людей тут була б команда (@org/team), а не особа.
+# Пізніше правило перекриває попереднє, тому загальне правило стоїть першим.
+
+*                         @tyshchenkooleksandra-hue @AlexandraTyshchenko
+
+/docs/branching.md        @tyshchenkooleksandra-hue @AlexandraTyshchenko
+/docs/readme-template.md  @tyshchenkooleksandra-hue @AlexandraTyshchenko
+/docs/conflict.md         @tyshchenkooleksandra-hue @AlexandraTyshchenko
+/docs/editor-config.md    @AlexandraTyshchenko @tyshchenkooleksandra-hue
+/docs/code-review.md      @AlexandraTyshchenko @tyshchenkooleksandra-hue
