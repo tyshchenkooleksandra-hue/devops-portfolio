@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Перевіряє, що повідомлення коміту відповідає Conventional Commits.
+# Встановлення: git config core.hooksPath .githooks   (див. docs/branching.md)
+# Git передає шлях до файла з повідомленням першим аргументом.
+
+msg_file="$1"
+export LC_ALL=C.UTF-8   # щоб [[ =~ ]] коректно порівнював кириличні літери
+# перший непорожній рядок, що не є коментарем
+header=$(grep -v '^#' "$msg_file" | grep -m1 -v '^[[:space:]]*$')
+
+# Повідомлення, які генерує сам Git (merge, revert, fixup/squash для rebase -i), пропускаємо:
+# інакше хук блокує стандартні операції і привчає до --no-verify.
+if [[ "$header" =~ ^(Merge\ |Revert\ \"|fixup!\ |squash!\ |amend!\ ) ]]; then
+  exit 0
+fi
+
+types='build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test'
+pattern="^(${types})(\([a-z0-9-]+\))?!?: [^ ].{0,98}$"
+
+# Те саме правило, що й у CI (.github/workflows/commit-conventions.yml):
+# опис після «тип: » починається з малої літери.
+upper='[A-ZАБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ]'
+subject="${header#*: }"
+if [[ "$header" =~ $pattern ]] && ! [[ "${subject:0:1}" =~ $upper ]]; then
+  exit 0
+fi
+
+cat >&2 <<MSG
+✗ Повідомлення коміту не відповідає Conventional Commits:
+
+    $header
+
+Формат:  <тип>(<область>)?: <опис з малої літери>
+Типи:    ${types//|/, }
+Приклад: docs(branching): додати правила іменування гілок
+
+Деталі — docs/branching.md. Обійти перевірку не можна: той самий формат перевіряє CI.
+MSG
+exit 1
