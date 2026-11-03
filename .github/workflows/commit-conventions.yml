@@ -1,0 +1,63 @@
+# Автоматична перевірка формату повідомлень і генерація списку змін.
+# Формат описано в docs/branching.md.
+name: commit-conventions
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-title:
+    # Після squash merge заголовок PR стає повідомленням коміту в main,
+    # тому перевіряємо саме його. Робочі коміти в гілці можуть бути будь-якими.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            build
+            chore
+            ci
+            docs
+            feat
+            fix
+            perf
+            refactor
+            revert
+            style
+            test
+          requireScope: false
+          # опис з малої літери; українська дозволена
+          subjectPattern: ^[^A-ZА-ЯІЇЄҐ].+$
+          subjectPatternError: "Опис «{subject}» має починатися з малої літери (docs/branching.md)"
+
+  changelog:
+    # Після кожного злиття в main — список змін з історії.
+    # У main не пушимо: ruleset забороняє зміни без PR навіть для ботів,
+    # тому результат — у підсумку запуску й артефакті.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+        env:
+          OUTPUT: CHANGELOG.md
+      - run: cat CHANGELOG.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: CHANGELOG.md
