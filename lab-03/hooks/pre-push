@@ -3,14 +3,26 @@
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
-py=$(command -v python3 || command -v python || true)
-if [[ -z "$py" ]]; then
-  printf 'pre-push: не знайдено python — тести неможливо запустити, push скасовано\n' >&2
+# Шукаємо інтерпретатор, який справді запускається: на Windows у PATH буває заглушка
+# python3.exe з Microsoft Store — `command -v` її знаходить, а запуск лише друкує
+# «Python was not found». Тому кожного кандидата перевіряємо виконанням.
+py=()
+for candidate in "${PYTHON:-}" python3 python "$HOME/.local/bin/python" "py -3"; do
+  [[ -n "$candidate" ]] || continue
+  read -ra cmd <<< "$candidate"
+  if "${cmd[@]}" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+    py=("${cmd[@]}")
+    break
+  fi
+done
+if [[ ${#py[@]} -eq 0 ]]; then
+  printf 'pre-push: не знайдено робочого Python 3.10+ — тести неможливо запустити, push скасовано\n' >&2
+  printf '          (змінна PYTHON задає шлях явно)\n' >&2
   exit 1
 fi
 
-printf 'pre-push: запуск тестів lab-03/tests\n'
-if ! "$py" -m unittest discover -s "$root/lab-03/tests" -t "$root/lab-03"; then
+printf 'pre-push: запуск тестів lab-03/tests (%s)\n' "${py[*]}"
+if ! "${py[@]}" -m unittest discover -s "$root/lab-03/tests" -t "$root/lab-03"; then
   printf '\npre-push: тести не пройшли — push скасовано\n' >&2
   exit 1
 fi
