@@ -1,0 +1,6 @@
+# журнали запусків і результати — локальні
+logs/
+# зібрані бінарники Go (збираються командою з README)
+go/fsort/fsort
+go/fsort/fsort.exe
+go/fsort/fsort-linux

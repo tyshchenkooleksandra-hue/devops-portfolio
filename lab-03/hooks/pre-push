@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# pre-push: запускає тести lab-03. Тести не проходять — push не відбувається.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+py=$(command -v python3 || command -v python || true)
+if [[ -z "$py" ]]; then
+  printf 'pre-push: не знайдено python — тести неможливо запустити, push скасовано\n' >&2
+  exit 1
+fi
+
+printf 'pre-push: запуск тестів lab-03/tests\n'
+if ! "$py" -m unittest discover -s "$root/lab-03/tests" -t "$root/lab-03"; then
+  printf '\npre-push: тести не пройшли — push скасовано\n' >&2
+  exit 1
+fi
