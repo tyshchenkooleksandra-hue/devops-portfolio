@@ -1,0 +1,40 @@
+{
+  "defaults": {
+    "expected_status": 200,
+    "timeout_s": 5,
+    "slow_ms": 2000
+  },
+  "targets": [
+    {
+      "name": "example-ok",
+      "url": "https://example.com/"
+    },
+    {
+      "name": "dns-missing",
+      "url": "https://no-such-host.invalid/"
+    },
+    {
+      "name": "port-closed",
+      "url": "http://127.0.0.1:9/"
+    },
+    {
+      "name": "cert-expired",
+      "url": "https://expired.badssl.com/"
+    },
+    {
+      "name": "unexpected-code",
+      "url": "https://httpbin.org/status/503"
+    },
+    {
+      "name": "slow-api",
+      "url": "https://httpbin.org/delay/3",
+      "timeout_s": 10,
+      "slow_ms": 1500
+    },
+    {
+      "name": "no-answer",
+      "url": "http://10.255.255.1/",
+      "timeout_s": 2
+    }
+  ]
+}

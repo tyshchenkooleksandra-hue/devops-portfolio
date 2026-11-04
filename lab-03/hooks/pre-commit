@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# pre-commit: лінтер ЛИШЕ на файлах, що потрапляють у коміт.
+#   bash   → shellcheck
+#   Python → ruff
+# Перевіряється вміст з індексу (git show :файл), а не робоча копія: інакше можна
+# закомітити зламану версію, поки у файлі на диску лежить виправлена.
+set -euo pipefail
+
+mapfile -d '' staged < <(git diff --cached --name-only -z --diff-filter=ACMR)
+[[ ${#staged[@]} -gt 0 ]] || exit 0
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+sh_files=() py_files=()
+for f in "${staged[@]}"; do
+  case "$f" in
+    *.sh) kind="sh" ;;
+    *.py) kind="py" ;;
+    */hooks/pre-commit | */hooks/pre-push) kind="sh" ;;  # хуки без розширення — теж bash
+    *) continue ;;
+  esac
+  mkdir -p "$tmp/$(dirname "$f")"
+  git show ":$f" > "$tmp/$f"
+  if [[ $kind == sh ]]; then sh_files+=("$f"); else py_files+=("$f"); fi
+done
+
+[[ ${#sh_files[@]} -gt 0 || ${#py_files[@]} -gt 0 ]] || exit 0
+
+need() {
+  command -v "$1" >/dev/null || {
+    printf 'pre-commit: не знайдено %s — встановіть його (див. lab-03/README.md, розділ «Хуки»)\n' "$1" >&2
+    exit 1
+  }
+}
+
+failed=0
+if [[ ${#sh_files[@]} -gt 0 ]]; then
+  need shellcheck
+  printf 'pre-commit: shellcheck %s\n' "${sh_files[*]}"
+  # --format=gcc: без цитування рядків — shellcheck на Windows падає, друкуючи кирилицю
+  (cd "$tmp" && shellcheck --format=gcc "${sh_files[@]}") || failed=1
+fi
+if [[ ${#py_files[@]} -gt 0 ]]; then
+  need ruff
+  printf 'pre-commit: ruff %s\n' "${py_files[*]}"
+  (cd "$tmp" && ruff check --no-cache --quiet "${py_files[@]}") || failed=1
+fi
+
+if [[ $failed -ne 0 ]]; then
+  printf '\npre-commit: знайдено проблеми — коміт НЕ створено. Виправте й повторіть git add.\n' >&2
+  exit 1
+fi
