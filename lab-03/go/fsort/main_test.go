@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -56,7 +57,33 @@ func TestSortMovesAndKeepsExisting(t *testing.T) {
 	}
 }
 
+func TestEachRunIsLogged(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "fsort.log")
+	t.Setenv("FSORT_LOG", log)
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.pdf"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run([]string{"sort", "--dry-run", dir})
+	run([]string{"stats", filepath.Join(dir, "missing")})
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("очікувалось 2 рядки журналу, отримано %d: %q", len(lines), data)
+	}
+	if !strings.Contains(lines[0], "action=sort result=ok") || !strings.Contains(lines[0], "moved=1") {
+		t.Errorf("рядок sort: %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "action=stats result=failed code=2") {
+		t.Errorf("рядок stats: %q", lines[1])
+	}
+}
+
 func TestUsageErrors(t *testing.T) {
+	t.Setenv("FSORT_LOG", filepath.Join(t.TempDir(), "fsort.log"))
 	if code := run([]string{"sort"}); code != exitUsage {
 		t.Errorf("sort без теки: exit %d", code)
 	}

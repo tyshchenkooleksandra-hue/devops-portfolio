@@ -375,6 +375,13 @@ $ cat logs/monitor-cron.out
 Коди виходу: `0` — звіт побудовано, `2` — параметри, `3` — вхідний файл недоступний,
 `4` — неможливо записати вихід.
 
+Журнал запусків — `logs/log_analyzer.log` (параметр `--log`), рядок на запуск:
+
+```text
+2026-11-17T22:46:43+02:00 action=analyze result=ok input="samplesccess.log" format=text lines=3005 parsed=3000 malformed=5
+2026-11-17T22:46:43+02:00 action=analyze result=failed code=3 input="nope.log" reason="No such file or directory"
+```
+
 **Стійкість:** `parse_line` повертає `None` замість винятку для будь-якого некоректного рядка
 (обірваний, неіснуюча дата `32/Oct`, код `999`, двійкове сміття); такі рядки рахуються окремо.
 Файл відкривається з `errors="replace"` — байти не в UTF-8 не валять розбір.
@@ -429,6 +436,15 @@ fsort version | help
 `flag.FlagSet`; наявний файл не перезаписується (` (1)`, ` (2)`…). Коди виходу: `0` / `1` —
 помилка переміщення / `2` — параметри. Тести: `go test ./...`.
 
+Журнал — у теці кешу користувача (`%LOCALAPPDATA%sortsort.log`, `~/.cache/fsort/fsort.log`)
+або за шляхом зі змінної `FSORT_LOG`. Не в самій теці, яку розкладаємо: інакше наступний запуск
+переклав би власний журнал в `other`.
+
+```text
+2026-11-17T22:48:19+02:00 action=sort result=ok code=0 dir="…/fs-demo" moved=2 failed=0 dry_run=true
+2026-11-17T22:48:19+02:00 action=stats result=failed code=2 args=["…/fs-demo/nope"]
+```
+
 **Статична збірка:**
 
 ```bash
@@ -480,6 +496,6 @@ fsort-linux: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically lin
 ## Тести
 
 ```bash
-python -m unittest discover -s lab-03/tests -t lab-03    # 17 тестів: backup, api_monitor, log_analyzer
+python -m unittest discover -s lab-03/tests -t lab-03    # 18 тестів: backup, api_monitor, log_analyzer
 cd lab-03/go/fsort && go test ./...                     # fsort
 ```

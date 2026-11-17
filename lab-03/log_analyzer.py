@@ -21,6 +21,19 @@ EXIT_USAGE = 2  # argparse використовує 2 для помилок па
 EXIT_INPUT = 3  # вхідний файл не існує / не читається
 EXIT_OUTPUT = 4  # вихідний файл неможливо записати
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def log_run(log_path: Path, result: str, details: str) -> None:
+    """Рядок журналу на кожен запуск: час, дія, результат. Збій запису журналу не валить аналіз."""
+    line = f"{datetime.now().astimezone().isoformat(timespec='seconds')} action=analyze result={result} {details}\n"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError as e:
+        print(f"log_analyzer.py: попередження: журнал {log_path} не записано: {e.strerror}", file=sys.stderr)
+
 LINE_RE = re.compile(
     r'^(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] '
     r'"(?P<method>[A-Z]+) (?P<path>\S+) (?P<proto>[^"]+)" '
@@ -127,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", type=Path, help="куди записати звіт (типово — stdout)")
     p.add_argument("-f", "--format", choices=("text", "json"), default="text", help="формат звіту (типово: text)")
     p.add_argument("-n", "--top", type=int, default=10, help="кількість адрес у топі (типово: 10)")
+    p.add_argument("--log", type=Path, default=SCRIPT_DIR / "logs" / "log_analyzer.log",
+                   help="журнал запусків (типово: %(default)s)")
     args = p.parse_args(argv)
     if args.top < 1:
         p.error("--top має бути >= 1")
@@ -137,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             report = analyze(f, args.top)
     except OSError as e:
         print(f"log_analyzer.py: не вдалося прочитати {args.input}: {e.strerror}", file=sys.stderr)
+        log_run(args.log, "failed", f'code={EXIT_INPUT} input="{args.input}" reason="{e.strerror}"')
         return EXIT_INPUT
 
     text = (json.dumps(report, ensure_ascii=False, indent=2) + "\n" if args.format == "json"
@@ -146,11 +162,14 @@ def main(argv: list[str] | None = None) -> int:
             args.output.write_text(text, encoding="utf-8")
         except OSError as e:
             print(f"log_analyzer.py: не вдалося записати {args.output}: {e.strerror}", file=sys.stderr)
+            log_run(args.log, "failed", f'code={EXIT_OUTPUT} output="{args.output}" reason="{e.strerror}"')
             return EXIT_OUTPUT
         print(f"звіт записано: {args.output} ({report['lines_parsed']} рядків, "
               f"пошкоджених: {report['lines_malformed']})", file=sys.stderr)
     else:
         sys.stdout.write(text)
+    log_run(args.log, "ok", f'input="{args.input}" format={args.format} lines={report["lines_total"]} '
+            f'parsed={report["lines_parsed"]} malformed={report["lines_malformed"]}')
     return EXIT_OK
 
 

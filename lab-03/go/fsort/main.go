@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const version = "1.0.0"
@@ -65,11 +66,14 @@ func usage(w io.Writer) {
 
 Коди виходу: 0 — успіх, 1 — помилка під час переміщення, 2 — неправильні параметри.
 
+Журнал: кожен запуск sort/stats дописує рядок у %s
+(змінна FSORT_LOG задає інший шлях).
+
 Приклад:
   fsort sort --dry-run ~/Downloads
   fsort sort --dest ~/Sorted ~/Downloads
   fsort stats ~/Downloads
-`, version)
+`, version, logPath())
 }
 
 // listFiles повертає звичайні файли верхнього рівня, відсортовані за іменем.
@@ -158,6 +162,7 @@ func cmdSort(args []string) int {
 		moved++
 	}
 	fmt.Printf("%sрозкладено: %d, помилок: %d\n", prefix, moved, failed)
+	runSummary = fmt.Sprintf("dir=%q moved=%d failed=%d dry_run=%t", src, moved, failed, *dryRun)
 	if failed > 0 {
 		return exitError
 	}
@@ -182,10 +187,59 @@ func cmdStats(args []string) int {
 		fmt.Printf("%-10s %d\n", c, counts[c])
 	}
 	fmt.Printf("%-10s %d\n", "total", len(files))
+	runSummary = fmt.Sprintf("dir=%q total=%d", args[0], len(files))
 	return exitOK
 }
 
+// runSummary — підсумок останньої команди для журналу (заповнюють cmdSort і cmdStats).
+var runSummary string
+
+// logPath — файл журналу: FSORT_LOG або кеш користувача. Не в самій теці, яку розкладаємо:
+// інакше наступний запуск переклав би власний журнал у other.
+func logPath() string {
+	if p := os.Getenv("FSORT_LOG"); p != "" {
+		return p
+	}
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		dir = os.TempDir()
+	}
+	return filepath.Join(dir, "fsort", "fsort.log")
+}
+
+// logRun дописує рядок на запуск: час, дія, результат. Збій журналу роботу не зупиняє.
+func logRun(action string, code int, args []string) {
+	result := "ok"
+	if code != exitOK {
+		result = "failed"
+	}
+	summary := runSummary
+	if summary == "" { // команда впала до підсумку — записуємо, з чим її викликали
+		summary = fmt.Sprintf("args=%q", args)
+	}
+	line := fmt.Sprintf("%s action=%s result=%s code=%d %s\n",
+		time.Now().Format(time.RFC3339), action, result, code, summary)
+	path := logPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err == nil {
+		if f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); err == nil {
+			_, _ = f.WriteString(line)
+			_ = f.Close()
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "fsort: попередження: журнал %s не записано\n", path)
+}
+
 func run(args []string) int {
+	runSummary = ""
+	code := dispatch(args)
+	if len(args) > 0 && (args[0] == "sort" || args[0] == "stats") {
+		logRun(args[0], code, args[1:])
+	}
+	return code
+}
+
+func dispatch(args []string) int {
 	if len(args) == 0 {
 		usage(os.Stderr)
 		return exitUsage
