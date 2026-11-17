@@ -41,5 +41,21 @@ class ParseLineTest(unittest.TestCase):
         self.assertEqual(r["peak_hours"], ["20:00"])
 
 
+class RunLogTest(unittest.TestCase):
+    def test_each_run_is_logged_including_failures(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "run.log"
+            sample = Path(d) / "access.log"
+            sample.write_text(GOOD + "\ngarbage\n", encoding="utf-8")
+            self.assertEqual(la.main(["-i", str(sample), "-o", str(Path(d) / "r.txt"), "--log", str(log)]), la.EXIT_OK)
+            self.assertEqual(la.main(["-i", str(Path(d) / "missing.log"), "--log", str(log)]), la.EXIT_INPUT)
+            lines = log.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 2)
+            self.assertIn("action=analyze result=ok", lines[0])
+            self.assertIn("malformed=1", lines[0])
+            self.assertIn("result=failed code=3", lines[1])
+
+
 if __name__ == "__main__":
     unittest.main()
